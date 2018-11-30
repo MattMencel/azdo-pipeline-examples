@@ -14,7 +14,15 @@ Tasks currently assume...
 * The wiki has a `/Builds` directory at it's root as well as a `/Builds/Template.md` file (see below).
 * Terraform is already installed on the build agent.
 
-## Tasks
+## Usage
+
+Go to the `Task Groups` section in ADO.  Import the `publish_terraform_plan.json` file.  Edit as needed.
+
+In the builds where `terraform plan` is run, output the plan results to a plan file named `tfplan`.
+
+Attach the new `Publish Terraform Plans` task group after the `terraform plan` tasks.
+
+## Task Descriptions
 
 ### Task 1 - Git Clone Wiki
 
@@ -121,7 +129,7 @@ EOT
 
 ### Task 5 - Archive Old Builds
 
-To keep build directories from filling up with old builds, we archive all but the 10 most recent builds.
+To keep build directories from filling up with old builds, archive all but the 10 most recent builds.
 
 ``` sh
 # WORKING DIRECTORY IS $(Agent.WorkFolder)/wiki/Builds
