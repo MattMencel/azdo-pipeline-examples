@@ -1,0 +1,172 @@
+{
+  "tasks": [{
+    "environment": {},
+    "displayName": "Git Clone Wiki",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "if [ -d \"wiki\" ]; then rm -rf wiki; fi\n\ngit clone https://test:$(System.AccessToken)@ORGANIZATION.visualstudio.com/PROJECT/_git/PROJECT.wiki wiki",
+      "workingDirectory": "$(Agent.WorkFolder)",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }, {
+    "environment": {},
+    "displayName": "Git Config",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "git config --global user.email \"ado_build@EXAMPLEDOMAIN.com\"\ngit config --global user.name \"ado_build\"",
+      "workingDirectory": "$(Agent.WorkFolder)/wiki",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }, {
+    "environment": {},
+    "displayName": "Terraform Show - Output",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "\nterraform show -no-color tfplan > tfplan.out",
+      "workingDirectory": "$(terraform.path)",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }, {
+    "environment": {},
+    "displayName": "Write Terraform Show to Wiki",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "bn=$(Build.DefinitionName)\nbuild_name=${bn// /_}\ntemplate=\"wiki/Builds/Template.md\"\nfile_name=\"wiki/Builds/${build_name}/$(Build.BuildNumber).md\"\ntfout=\"$(System.DefaultWorkingDirectory)/$(terraform.path)/tfplan.out\"\n\nmkdir -p \"wiki/Builds/${build_name}\"\n\n\n\ncat ${template} > ${file_name}\n\ncat <<EOT >> ${file_name}\n\n## Build Details\n\n<table>\n  <tr>\n    <td><b>Build Reason</b></td>\n    <td>$(Build.Reason)</td>\n  </tr>\n  <tr>\n    <td><b>Requestor</b></td>\n    <td>$(Build.RequestedFor)</td>\n  </tr>\n  <tr>\n    <td><b>Repository</b></td>\n    <td><a href=$(Build.Repository.Uri)>$(Build.Repository.Uri)</a></td>\n  </tr>\n  <tr>\n    <td><b>Branch</b></td>\n    <td>$(Build.SourceBranchName)</td>\n  </tr>\n  <tr>\n    <td><b>Latest Commit</b></td>\n    <td><a href=$(Build.Repository.Uri)/commit/$(Build.SourceVersion)>$(Build.SourceVersion)</a></td>\n  </tr>\n  <tr>\n    <td><b>Latest Commit Message</b></td>\n    <td><pre>$(Build.SourceVersionMessage)</pre></td>\n  </tr>\n</table>\n\n## Terraform Show\n\n\\`\\`\\`\nEOT\n\ncat ${tfout} >> ${file_name}\ncat <<EOT >> ${file_name}\n\\`\\`\\`\nEOT",
+      "workingDirectory": "$(Agent.WorkFolder)",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }, {
+    "environment": {},
+    "displayName": "Archive Old Builds",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "# WORKING DIRECTORY IS $(Agent.WorkFolder)/wiki/Builds\nbn=$(Build.DefinitionName)\nbuild_name=${bn// /_}\n\n# CD INTO THE build_name DIRECTORY\ncd ${build_name}\n\n# CREATE THE Archives DIRECTORY IF IT DOESN'T EXIST\nmkdir -p \"Archives\"\n\n# FIND ALL FILES IN THE CURRENT WORKING DIRECTORY | \n#   REVERSE SORT | \n#   GET ALL BUT THE LATEST 10 FILES |\n#   MOVE THEM TO THE Archives FOLDER\nfind * -maxdepth 0 -type f | sort -nr | awk 'NR > 10' | xargs -i mv {} ./Archives/",
+      "workingDirectory": "$(Agent.WorkFolder)/wiki/Builds",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }, {
+    "environment": {},
+    "displayName": "Git Push Wiki",
+    "alwaysRun": false,
+    "continueOnError": false,
+    "condition": "succeeded()",
+    "enabled": true,
+    "timeoutInMinutes": 0,
+    "inputs": {
+      "script": "git pull\ngit add .\ngit commit -m \"Build $(Build.BuildNumber)\"\ngit push https://test:$(System.AccessToken)@ORGANIZATION.visualstudio.com/PROJECT/_git/PROJECT.wiki",
+      "workingDirectory": "$(Agent.WorkFolder)/wiki",
+      "failOnStderr": "false"
+    },
+    "task": {
+      "id": "d9bafed4-0b18-4f58-968d-86655b4d2ce9",
+      "versionSpec": "2.*",
+      "definitionType": "task"
+    }
+  }],
+  "runsOn": ["Agent", "DeploymentGroup"],
+  "revision": 67,
+  "createdBy": {
+    "displayName": "AUTHOR_NAME",
+    "id": "0b7cb020-f4e1-11e8-b568-0800200c9a66",
+    "uniqueName": "AUTHOR@DOMAIN.COM"
+  },
+  "createdOn": "2018-10-30T19:42:10.547Z",
+  "modifiedBy": {
+    "displayName": "AUTHOR_NAME",
+    "id": "0b7cb020-f4e1-11e8-b568-0800200c9a66",
+    "uniqueName": "AUTHOR@DOMAIN.COM"
+  },
+  "modifiedOn": "2018-11-27T16:43:36.937Z",
+  "comment": "",
+  "id": "32e00040-f4e1-11e8-b568-0800200c9a66",
+  "name": "Publish Terraform Plans to the Wiki",
+  "version": {
+    "major": 1,
+    "minor": 0,
+    "patch": 0,
+    "isTest": false
+  },
+  "iconUrl": "https://cdn.vsassets.io/v/20180918T115633/_content/icon-meta-task.png",
+  "friendlyName": "Publish Terraform Plans to the Wiki",
+  "description": "Publishes Terraform Show Results to the Wiki",
+  "category": "Build",
+  "definitionType": "metaTask",
+  "author": "AUTHOR_NAME",
+  "demands": [],
+  "groups": [],
+  "inputs": [{
+    "aliases": [],
+    "options": {},
+    "properties": {},
+    "name": "Build.SourceVersionMessage",
+    "label": "Build.SourceVersionMessage",
+    "defaultValue": "",
+    "required": true,
+    "type": "string",
+    "helpMarkDown": "",
+    "groupName": ""
+  }, {
+    "aliases": [],
+    "options": {},
+    "properties": {},
+    "name": "terraform.path",
+    "label": "terraform.path",
+    "defaultValue": "",
+    "required": true,
+    "type": "string",
+    "helpMarkDown": "",
+    "groupName": ""
+  }],
+  "satisfies": [],
+  "sourceDefinitions": [],
+  "dataSourceBindings": [],
+  "instanceNameFormat": "Task group: Publish Terraform Plans to the Wiki $(Build.SourceVersionMessage)",
+  "preJobExecution": {},
+  "execution": {},
+  "postJobExecution": {}
+}
