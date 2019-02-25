@@ -14,9 +14,21 @@ Modifications to the working directories and URIs in the tasks may need to be cu
 
 ### Build Readiness
 
+Build Readiness tasks are run to ensure the code is ready for build, without obvious errors, and formatted for clarity.
+
 ### Terraform Plan
 
 ### Terraform Publish Artifact
+
+The [template-terraform-publish-artifact.yml](template-terraform-publish-artifact.yml) template publishes the terraform plan as an artifact so it can be used in a release to do a `terraform apply`.
+
+One thing I’ve discovered is that the publishing of the Terraform artifact can take a really long time. When using modules the .terraform directory starts growing and we can eventually have thousands of files, some well over 10K files, that need to be uploaded in the artifact publish step. There is metadata that AzDO is publishing along with the files and when it has thousands of small files to process it takes a really long time. Twenty to thirty minutes in some cases.
+
+To combat this you can compress the Terraform directory on the build agent into a single file, upload that, and then in the release step you just need to uncompress the archive before your terraform apply is run.
+
+The compress step creates a single tar.gz file, in the default build agent directory, from the terraform.path and names it with the state.key variable.
+
+This tar.gz file is then published as the artifact. The example above with 10K+ files in it that took over 20 minutes to publish originally, now takes no more than 15 seconds.
 
 ### Terraform Publish Plan to Wiki
 
@@ -25,5 +37,11 @@ Current assumptions...
 * The Terraform `tfplan` file can be found in a path stored in the `$(terraform.path)` pipeline variable.
 * The wiki has a `/Builds` directory at it's root as well as a `/Builds/Template.md` file (see below).
 * Terraform is already installed on the build agent.
+
+### Terraform Azure Pipeline
+
+This is the base pipeline from which all other template pipelines are called.
+
+When setting up a Terraform pipeline for a new stack you can copy the `terraform-azure-pipeline.yml` file to the root of your stack, rename it to `auzre-pipelines.yml` and edit it as needed.
 
 ### VSTS Agent Deploy to AKS
