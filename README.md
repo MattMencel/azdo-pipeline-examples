@@ -14,9 +14,11 @@ Modifications to the working directories and URIs in the tasks may need to be cu
 
 ### Build Readiness
 
-Build Readiness tasks are run to ensure the code is ready for build, without obvious errors, and formatted for clarity.
+The [template-terraform-build-readiness.yml](template-terraform-build-readiness.yml) contains build readiness tasks that can be run to ensure the code is ready for build, without obvious errors, and formatted for clarity.
 
 ### Terraform Plan
+
+The [template-terraform-plan.yml](template-terraform-plan.yml) runs terraform plan tasks.
 
 ### Terraform Publish Artifact
 
@@ -32,6 +34,8 @@ This tar.gz file is then published as the artifact. The example above with 10K+ 
 
 ### Terraform Publish Plan to Wiki
 
+The [template-terraform-publish-plan-to-wiki.yml](template-terraform-publish-plan-to-wiki.yml) template will publish the plan output to a wiki page in AzDO and include some of the build metadata in the page output.
+
 Current assumptions...
 * The wiki will be cloned into `$(Agent.WorkFolder)/wiki`.
 * The Terraform `tfplan` file can be found in a path stored in the `$(terraform.path)` pipeline variable.
@@ -40,8 +44,10 @@ Current assumptions...
 
 ### Terraform Azure Pipeline
 
-This is the base pipeline from which all other template pipelines are called.
+The [terraform-azure-pipeline.yml](terraform-azure-pipeline.yml) is the base pipeline from which all other template pipelines are called.
 
 When setting up a Terraform pipeline for a new stack you can copy the `terraform-azure-pipeline.yml` file to the root of your stack, rename it to `auzre-pipelines.yml` and edit it as needed.
 
 ### VSTS Agent Deploy to AKS
+
+The [vsts-agent-deploy-to-aks.yml](vsts-agent-deploy-to-aks.yml) pipeline deploys custom VSTS Agent pods to an AKS cluster so they can be used by other build and release pipelines.
