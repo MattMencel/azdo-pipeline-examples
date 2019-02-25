@@ -46,7 +46,7 @@ Current assumptions...
 
 The [terraform-azure-pipeline.yml](terraform-azure-pipeline.yml) is the base pipeline from which all other template pipelines are called.
 
-When setting up a Terraform pipeline for a new stack you can copy the `terraform-azure-pipeline.yml` file to the root of your stack, rename it to `auzre-pipelines.yml` and edit it as needed.
+When setting up a Terraform pipeline for a new stack you can copy the `terraform-azure-pipeline.yml` file to the root of your stack, rename it to `azure-pipelines.yml` and edit it as needed.
 
 ### VSTS Agent Deploy to AKS
 
