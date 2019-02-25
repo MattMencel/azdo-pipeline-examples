@@ -1,0 +1,13 @@
+# Steps to create a tar.gz archive of the terraform folder and publish them as an Azure DevOps artifact
+
+steps:
+- script: |
+    echo "Compressing $(terraform.path) directory..."
+    tar -czf $(state.key).tar.gz -C $(terraform.path) .
+  displayName: 'Compress $(terraform.path) Artifact'
+
+- task: PublishBuildArtifacts@1
+  displayName: 'Publish Artifact: $(state.key).tfplan'
+  inputs:
+    PathtoPublish: '$(state.key).tar.gz'
+    ArtifactName: 'tfplan'

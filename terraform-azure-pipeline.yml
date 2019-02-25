@@ -1,0 +1,37 @@
+name: $(BuildDefinitionName).$(DayOfYear)$(Rev:.r)
+resources:
+  repositories:
+    - repository: Templates
+      type: git
+      name: Templates
+pool:
+  name: Terraform Agents
+trigger:
+  batch: true
+  branches:
+    include:
+      - master
+      - feature/*
+  paths:
+    include:
+      - 'SOMEPATH/DEV/AKS'
+variables:
+- name: state.key
+  value: 'TFSTATE'
+- name: terraform.path
+  value: 'SOMEPATH/DEV/AKS'
+- group: 'KEY-VAULT-VAR-GROUP'
+- group: 'STANDARD-VAR-GROUP'
+
+steps:
+- checkout: self
+  clean: true
+  persistCredentials: true
+
+- template: ADO/template-build-readiness.yml@Templates
+
+- template: ADO/template-terraform-plan.yml@Templates
+
+- template: ADO/template-terraform-publish-artifact.yml@Templates
+
+- template: ADO/template-terraform-publish-plan-to-wiki.yml@Templates

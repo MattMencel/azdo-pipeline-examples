@@ -1,0 +1,97 @@
+steps:
+- script: |
+   if [ -d "wiki" ]; then rm -rf wiki; fi
+   git clone https://test:$(System.AccessToken)@$(AZDO_ORGANIZATION).visualstudio.com/$(AZDO_PROJECT)/_git/$(AZDO_PROJECT).wiki wiki
+  workingDirectory: '$(Agent.WorkFolder)'
+  displayName: 'Git Clone Wiki'
+
+- script: |
+   git config --global user.email "ado@here.com"
+   git config --global user.name "ado"
+  workingDirectory: '$(Agent.WorkFolder)/wiki'
+  displayName: 'Git Config'
+
+- script: |
+   terraform show -no-color tfplan > tfplan.out
+  workingDirectory: '$(terraform.path)'
+  displayName: 'Terraform Show - Output'
+
+- script: |
+   bn=$(Build.DefinitionName)
+   build_name=${bn// /_}
+   template="wiki/Builds/Template.md"
+   file_name="wiki/Builds/${build_name}/$(Build.BuildNumber).md"
+   tfout="$(System.DefaultWorkingDirectory)/$(terraform.path)/tfplan.out"
+   mkdir -p "wiki/Builds/${build_name}"
+
+   cat ${template} > ${file_name}
+   cat <<EOT >> ${file_name}
+
+   ## Build Details
+   <table>
+   <tr>
+      <td><b>Build Reason</b></td>
+      <td>$(Build.Reason)</td>
+   </tr>
+   <tr>
+      <td><b>Requestor</b></td>
+      <td>$(Build.RequestedFor)</td>
+   </tr>
+   <tr>
+      <td><b>Repository</b></td>
+      <td><a href=$(Build.Repository.Uri)>$(Build.Repository.Uri)</a></td>
+   </tr>
+   <tr>
+      <td><b>Branch</b></td>
+      <td>$(Build.SourceBranchName)</td>
+   </tr>
+   <tr>
+      <td><b>Latest Commit</b></td>
+      <td><a href=$(Build.Repository.Uri)/commit/$(Build.SourceVersion)>$(Build.SourceVersion)</a></td>
+   </tr>
+   <tr>
+      <td><b>Latest Commit Message</b></td>
+      <td><pre>$(Build.SourceVersionMessage)</pre></td>
+   </tr>
+   </table>
+
+   ## Terraform Show Output
+
+   \`\`\` sh
+   EOT
+
+   cat ${tfout} >> ${file_name}
+   cat <<EOT >> ${file_name}
+   \`\`\`
+   EOT
+  workingDirectory: '$(Agent.WorkFolder)'
+  displayName: 'Write Terraform Show to Wiki'
+
+- script: |
+   # WORKING DIRECTORY IS $(Agent.WorkFolder)/wiki/Builds
+   bn=$(Build.DefinitionName)
+   build_name=${bn// /_}
+
+   # CD INTO THE build_name DIRECTORY
+   cd ${build_name}
+
+   # CREATE THE Archives DIRECTORY IF IT DOESN'T EXIST
+   mkdir -p "Archives"
+
+   # FIND ALL FILES IN THE CURRENT WORKING DIRECTORY | 
+   #   REVERSE SORT | 
+   #   GET ALL BUT THE LATEST 10 FILES |
+   #   MOVE THEM TO THE Archives FOLDER
+   find * -maxdepth 0 -type f | sort -nr | awk 'NR > 10' | xargs -i mv {} ./Archives/
+  workingDirectory: '$(Agent.WorkFolder)/wiki/Builds'
+  displayName: 'Archive Old Builds'
+
+- script: |
+   git pull
+   git add .
+   git commit -m "Build $(Build.BuildNumber)"
+   git push https://test:$(System.AccessToken)@$(AZDO_ORGANIZATION).visualstudio.com/$(AZDO_PROJECT)/_git/$(AZDO_PROJECT).wiki
+   echo "### Link To Build ###"
+   echo "https://$(AZDO_ORGANIZATION).visualstudio.com/$(AZDO_PROJECT)/_git/$(AZDO_PROJECT).wiki?wikiVersion=GBwikiMaster&pagePath=%2FBuilds%2F$(Build.DefinitionName)%2F$(Build.BuildNumber)"
+  workingDirectory: '$(Agent.WorkFolder)/wiki'
+  displayName: 'Git Push Wiki - View Link Here'
