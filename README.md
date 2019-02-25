@@ -24,11 +24,11 @@ The [template-terraform-plan.yml](template-terraform-plan.yml) runs terraform pl
 
 The [template-terraform-publish-artifact.yml](template-terraform-publish-artifact.yml) template publishes the terraform plan as an artifact so it can be used in a release to do a `terraform apply`.
 
-One thing I’ve discovered is that the publishing of the Terraform artifact can take a really long time. When using modules the .terraform directory starts growing and we can eventually have thousands of files, some well over 10K files, that need to be uploaded in the artifact publish step. There is metadata that AzDO is publishing along with the files and when it has thousands of small files to process it takes a really long time. Twenty to thirty minutes in some cases.
+One thing I’ve discovered is that the publishing of the Terraform artifact can take a really long time. When using modules the `.terraform` directory starts growing and we can eventually have thousands of files, some well over 10K files, that need to be uploaded in the artifact publish step. There is metadata that AzDO is publishing along with the files and when it has thousands of small files to process it takes a really long time. Twenty to thirty minutes in some cases.
 
 To combat this you can compress the Terraform directory on the build agent into a single file, upload that, and then in the release step you just need to uncompress the archive before your terraform apply is run.
 
-The compress step creates a single tar.gz file, in the default build agent directory, from the terraform.path and names it with the state.key variable.
+The compress step creates a single tar.gz file, in the default build agent directory, from the `terraform.path` and names it with the `state.key` variable.
 
 This tar.gz file is then published as the artifact. The example above with 10K+ files in it that took over 20 minutes to publish originally, now takes no more than 15 seconds.
 
