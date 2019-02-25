@@ -8,7 +8,7 @@ Azure DevOps YAML pipelines.
 
 Many tasks take avantage of the `$(System.AccessToken)` variable.  To gain access to this the build pipeline must enable the `Allow scripts to access the OAuth token` option in the Agent Job preferences pane.
 
-Modifications to the working directories and URIs in the tasks may need to be customized depending on how the Terraform and wiki is structured.  
+Modifications to the working directories and URIs in the tasks may need to be customized depending on how the Terraform repo and the AzDO Organization wiki folders are organized.  
 
 ## Pipeline File Descriptions
 
