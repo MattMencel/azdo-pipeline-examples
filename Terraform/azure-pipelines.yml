@@ -1,0 +1,20 @@
+name: $(BuildDefinitionName).$(DayOfYear)$(Rev:.r)
+trigger:
+  batch: 'true'
+  branches:
+    include:
+      - master
+      - feature/*
+variables:
+- name: STATE_KEY
+  value: 'MYSTATE'
+- name: TFPATH
+  value: 'PATH/TO/TERRAFORM'
+- name: STORAGE_ACCOUNT
+  value: 'SOME_STORAGE_ACCOUNT'
+- name: SUBSCRIPTION_NAME
+  value: 'SERVICE_CONNECTION_NAME'
+- group: 'Global-Variable-Group'
+
+stages:
+- template: Terraform-Stages.yml

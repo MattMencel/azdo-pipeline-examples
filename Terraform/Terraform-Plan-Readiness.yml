@@ -1,0 +1,137 @@
+jobs:
+- job: Validate
+  displayName: 'Terraform Validate'
+  pool: My Agent Pool
+  steps:
+  - checkout: self
+  - script: |
+     terraform validate -check-variables=false
+    workingDirectory: '$(TFPATH)'
+    displayName: 'Terraform Validate'
+
+- job: TFLint
+  displayName: 'TFLint'
+  pool: My Agent Pool
+  steps:
+  - checkout: self
+  - script: |
+     python3 -m pip install --upgrade pip
+     python3 -m pip install setuptools
+     python3 -m pip install lastversion
+     TFLINT_VERSION=$(lastversion wata727/tflint)
+     if ! tflint --version | grep -q ${TFLINT_VERSION}; then
+       rm tflint*
+       wget https://github.com/wata727/tflint/releases/download/v$TFLINT_VERSION/tflint_linux_amd64.zip
+       unzip tflint_linux_amd64.zip
+       install tflint /usr/local/bin
+     fi
+     cd $(TFPATH)
+     tflint
+    displayName: 'Run TFLint'
+    continueOnError: 'true'
+
+- job: Readiness
+  displayName: 'Build Readiness'
+  variables:
+    ORGANIZATION: 'my-org'
+    PROJECT: 'my-project'
+  pool: My Agent Pool
+  steps:
+  - checkout: self
+    clean: true
+    persistCredentials: true
+  - script: |
+      BRANCH=`echo $(Build.SourceBranch) | sed 's/refs\/heads\///'`
+      echo "##vso[task.setvariable variable=BRANCH]$BRANCH"
+    displayName: 'Set Branch'
+  - script: |
+      git --version
+      git config --global user.email "azdo@myorg.com"
+      git config --global user.name "azdo"
+      git checkout $(BRANCH)
+      git pull
+      git branch -a
+      git status
+    displayName: 'Checkout $(BRANCH)'
+    workingDirectory: '$(TFPATH)'
+  - script: |
+      # CHECK THAT variables HAVE A description
+      # CURRENTLY ONLY MATCHES WHEN AT LEAST ONE description APPEARS WITH VARIABLES
+      v=`grep -d skip -Pz --only-matching '(?<=variable)(\n|.)*?(?=})' * | grep description`
+      if [ -z "${v// }" ]
+      then
+        echo "$v FAIL: Variables should have a description...  See https://$(ORGANIZATION).visualstudio.com/$(PROJECT)/_wiki/wikis/Terraform.wiki?wikiVersion=GBwikiMaster&pagePath=%2FDevelopment%20Standards%2FTerraform%2Fv3%20Code%20Standards&anchor=variables"
+        exit 1
+      else
+        echo "$v SUCCESS:  all variables have a description"
+      fi
+    workingDirectory: '$(TFPATH)'
+    displayName: 'Variables have Description'
+    enabled: false
+  - script: |
+      cat <<EOT > README.md
+      # $(Build.Repository.Name) - $(Build.DefinitionName)
+      
+      [![Build status](https://$(ORGANIZATION).visualstudio.com/$(PROJECT)/_apis/build/status/$(Build.Repository.Name)%20Repo/$(Build.DefinitionName))](https://$(ORGANIZATION).visualstudio.com/$(PROJECT)/_build/latest?definitionId=$(System.DefinitionId))
+      
+      ___
+      
+      ## Usage
+      
+      ADD USAGE DOCUMENTATION
+      
+      ___
+      
+      ## Inputs and Outputs
+      
+      _Generated with [terraform-docs](https://github.com/segmentio/terraform-docs) and [pre-commit](https://www.unixdaemon.net/tools/terraform-precommit-hooks/)_
+      
+      <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+      
+      <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+      
+      EOT
+    workingDirectory: '$(TFPATH)'
+    displayName: 'Check for README.md, and create if missing'
+  - script: |
+      # NEED TO INSTALL THIS HERE UNTIL terraform-docs GETS ONTO THE AGENTS
+      go get github.com/segmentio/terraform-docs
+      ln -sf ~/go/bin/terraform-docs /usr/local/bin/terraform-docs
+    workingDirectory: '$(TFPATH)'
+    displayName: 'Install terraform-docs'
+  - script: |
+      python3 -m pip install --upgrade pip
+      python3 -m pip install setuptools
+      python3 -m pip install pre-commit
+      cat <<EOF > .pre-commit-config.yaml
+      - repo: git://github.com/antonbabenko/pre-commit-terraform
+        rev: v1.12.0
+        hooks:
+          - id: terraform_fmt
+          - id: terraform_docs
+          - id: terraform_validate_no_variables
+      EOF
+      git add .pre-commit-config.yaml
+      # pre-commit autoupdate (comment out until 0.12)
+    displayName: 'Install and Configure pre-commit-terraform'
+  - script: |
+      echo "pre-commit run --files *"
+      pre-commit run --files *
+      if [ "$?" -eq "1" ]
+      then
+        echo "... second pre-commit attempt ..."
+        pre-commit run --files *
+      fi
+    displayName: 'Run pre-commit-terraform on $(TFPATH)'
+    workingDirectory: '$(TFPATH)'
+    failOnStderr: false
+    continueOnError: true
+  - script: |
+      git branch -a
+      git add .
+      git commit -am 'code readiness - linting, formatting, docs [***NO_CI***]'
+      git push
+    displayName: 'Commit code corrections to $(BRANCH)'
+    workingDirectory: '$(TFPATH)'
+    continueOnError: true
+

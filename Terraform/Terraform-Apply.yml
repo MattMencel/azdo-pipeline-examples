@@ -1,0 +1,12 @@
+jobs:
+- deployment: Apply
+  displayName: 'Terraform Apply'
+  environment: Production
+  pool: My Agent Pool
+  workspace:
+    clean: all
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - template: Terraform-Apply-Steps.yml 

@@ -1,0 +1,8 @@
+jobs:
+- job: Plan
+  displayName: 'Terraform Plan'
+  pool: My Agent Pool
+  workspace:
+    clean: all
+  steps:
+  - template: Terraform-Plan-Steps.yml

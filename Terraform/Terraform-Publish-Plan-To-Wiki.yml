@@ -1,0 +1,111 @@
+jobs:
+- job: Publish
+  displayName: 'Publish to Wiki'
+  pool: My Agent Pool
+  workspace:
+    clean: all
+  steps:
+  - checkout: none
+  - download: current
+    artifact: 'tfplan'
+  - script: |
+     mkdir -p $(TFPATH)
+     tar -xzvf tfplan/$(STATE_KEY).tar.gz --directory $(TFPATH)
+    workingDirectory: '$(Pipeline.Workspace)'
+
+  - script: |
+     git config --global user.email "azdo@organization.com"
+     git config --global user.name "azdo"
+    displayName: 'Git Config'
+
+  - script: |
+     if [ -d "wiki" ]; then rm -rf wiki; fi
+     git clone https://azdo:$(System.AccessToken)@dev.azure.com/ORGANIZATION/PROJECT/_git/Terraform-Plans.wiki wiki
+    workingDirectory: '$(Agent.WorkFolder)'
+    displayName: 'Git Clone Wiki'
+    continueOnError: 'true'
+
+  - script: |
+     terraform show -no-color tfplan > tfplan.out
+    workingDirectory: '$(Pipeline.Workspace)/$(TFPATH)'
+    displayName: 'Terraform Show - Output'
+
+  - script: |
+     bn=$(Build.DefinitionName)
+     build_name=${bn// /_}
+     template="wiki/Builds/Template.md"
+     file_name="wiki/Builds/${build_name}/$(Build.BuildNumber).md"
+     tfout="$(Pipeline.Workspace)/$(TFPATH)/tfplan.out"
+     mkdir -p "wiki/Builds/${build_name}"
+
+     cat ${template} > ${file_name}
+     cat <<EOT >> ${file_name}
+
+     ## Build Details
+     <table>
+     <tr>
+        <td><b>Build Reason</b></td>
+        <td>$(Build.Reason)</td>
+     </tr>
+     <tr>
+        <td><b>Requestor</b></td>
+        <td>$(Build.RequestedFor)</td>
+     </tr>
+     <tr>
+        <td><b>Repository</b></td>
+        <td><a href=$(Build.Repository.Uri)>$(Build.Repository.Uri)</a></td>
+     </tr>
+     <tr>
+        <td><b>Branch</b></td>
+        <td>$(Build.SourceBranchName)</td>
+     </tr>
+     <tr>
+        <td><b>Latest Commit</b></td>
+        <td><a href=$(Build.Repository.Uri)/commit/$(Build.SourceVersion)>$(Build.SourceVersion)</a></td>
+     </tr>
+     <tr>
+        <td><b>Latest Commit Message</b></td>
+        <td><pre>$(Build.SourceVersionMessage)</pre></td>
+     </tr>
+     </table>
+
+     ## Terraform Show Output
+
+     \`\`\` sh
+     EOT
+
+     cat ${tfout} >> ${file_name}
+     cat <<EOT >> ${file_name}
+     \`\`\`
+     EOT
+    workingDirectory: '$(Agent.WorkFolder)'
+    displayName: 'Write Terraform Show to Wiki'
+
+  - script: |
+     # WORKING DIRECTORY IS $(Agent.WorkFolder)/wiki/Builds
+     bn=$(Build.DefinitionName)
+     build_name=${bn// /_}
+
+     # CD INTO THE build_name DIRECTORY
+     cd ${build_name}
+
+     # CREATE THE Archives DIRECTORY IF IT DOESN'T EXIST
+     mkdir -p "Archives"
+
+     # FIND ALL FILES IN THE CURRENT WORKING DIRECTORY | 
+     #   REVERSE SORT | 
+     #   GET ALL BUT THE LATEST 10 FILES |
+     #   MOVE THEM TO THE Archives FOLDER
+     find * -maxdepth 0 -type f | sort -nr | awk 'NR > 10' | xargs -i mv {} ./Archives/
+    workingDirectory: '$(Agent.WorkFolder)/wiki/Builds'
+    displayName: 'Archive Old Builds'
+
+  - script: |
+     git pull
+     git add .
+     git commit -m "Build $(Build.BuildNumber)"
+     git push https://azdo:$(System.AccessToken)@dev.azure.com/ORGANIZATION/PROJECT/_git/Terraform-Plans.wiki
+     echo "### Link To Build ###"
+     echo "https://dev.azure.com/ORGANIZATION/PROJECT/_wiki/wikis/Terraform-Plans.wiki?wikiVersion=GBwikiMaster&pagePath=%2FBuilds%2F$(Build.DefinitionName)%2F$(Build.BuildNumber)"
+    workingDirectory: '$(Agent.WorkFolder)/wiki'
+    displayName: 'Git Push Wiki - View Link Here'
