@@ -1,0 +1,52 @@
+parameters:
+  - name: states
+    type: object
+  - name: service_connection
+
+stages:
+  - ${{ each state in parameters.states }}:
+      - stage: Validate_and_Lint_${{ state.key }}
+        dependsOn: []
+        jobs:
+          - job: Validate_${{ state.key }}
+            displayName: "Terraform Validate ${{ state.key }}"
+            steps:
+              - checkout: self
+              - task: JamiePhillips.Terraform.TerraformTool.TerraformTool@0
+                displayName: "Use Terraform $(TF_VERSION)"
+                inputs:
+                  version: "$(TF_VERSION)"
+              - task: AzureCLI@1
+                displayName: "Setup Authentication"
+                inputs:
+                  azureSubscription: "${{ parameters.service_connection }}"
+                  addSpnToEnvironment: true
+                  scriptLocation: inlineScript
+                  failOnStandardError: "true"
+                  inlineScript: |
+                    echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]$(az account show --query="id" -o tsv)"
+                    echo "##vso[task.setvariable variable=ARM_CLIENT_ID]${servicePrincipalId}"
+                    echo "##vso[task.setvariable variable=ARM_CLIENT_SECRET]${servicePrincipalKey}"
+                    echo "##vso[task.setvariable variable=ARM_TENANT_ID]$(az account show --query="tenantId" -o tsv)"
+                    echo "##vso[task.setvariable variable=ARM_ACCESS_KEY]$(az storage account keys list -n ${STATE_STORAGE_ACCOUNT} --subscription "${STATE_SUBSCRIPTION}" --query="[0].value" -o tsv)"
+              - ${{ each wkspc in state.value }}:
+                  - script: |
+                      terraform version
+                      terraform init -input=false
+                      terraform workspace list
+                      WORKSPACE=`echo ${{ wkspc }} | tr "_" -`
+                      terraform workspace select ${WORKSPACE}
+                      terraform validate
+                    workingDirectory: "${{ state.key }}"
+                    displayName: "Terraform Validate"
+
+          - job: TFLint_${{ state.key }}
+            displayName: "TFLint ${{ state.key }}"
+            steps:
+              - checkout: self
+              - script: |
+                  curl -L "$(curl -Ls https://api.github.com/repos/terraform-linters/tflint/releases/latest | grep -o -E "https://.+?_linux_amd64.zip")" -o tflint.zip && unzip tflint.zip && rm tflint.zip
+                  ./tflint -v
+                  ./tflint
+                workingDirectory: "${{ state.key }}"
+                displayName: "Run TFLint"

@@ -1,0 +1,82 @@
+name: $(BuildDefinitionName).$(DayOfYear)$(Rev:.r)
+trigger:
+  batch: 'true'
+  branches:
+    include:
+      - master
+      - feature/*
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+- name: TF_VERSION
+  value: '0.12.24'
+- name: STATE_STORAGE_ACCOUNT
+  value: 'nctfstate'
+- name: STATE_SUBSCRIPTION
+  value: 'MySub'
+
+stages:
+- template: lint.yml
+  parameters:
+    service_connection: 'Terraform MySub NonProd'
+    states: 
+      hub:
+        - hub-centralus-np
+        - hub-centralus-prod
+      spoke:
+        - spoke-eastus-np
+        - spoke-eastus-prod
+
+# Plan NonProd
+- template: plan.yml
+  parameters:
+    service_connection: 'Terraform MySub NonProd'
+    states: 
+      hub:
+        workspaces:
+          - hub_centralus_np
+      spoke:
+        dependsOn: hub_centralus_np
+        workspaces:
+          - spoke_eastus_np
+
+# Apply NonProd
+- template: apply.yml
+  parameters:
+    service_connection: 'Terraform MySub NonProd'
+    states: 
+      hub:
+        workspaces:
+          - hub_centralus_np
+      spoke:
+        dependsOn: hub_centralus_np
+        workspaces:
+          - spoke_eastus_np
+
+# Plan Prod
+- template: plan.yml
+  parameters:
+    service_connection: 'Terraform MySub Prod'
+    states: 
+      hub:
+        dependsOn: hub_centralus_np
+        workspaces:
+          - hub_centralus_prod
+      spoke:
+        dependsOn: hub_centralus_prod
+        workspaces:
+          - spoke_eastus_prod
+
+# Apply Prod
+- template: apply.yml
+  parameters:
+    service_connection: 'Terraform MySub Prod'
+    states: 
+      hub:
+        workspaces:
+          - hub_centralus_prod
+      spoke:
+        dependsOn: hub_centralus_prod
+        workspaces:
+          - spoke_eastus_prod

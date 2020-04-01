@@ -1,0 +1,68 @@
+parameters:
+  - name: states
+    type: object
+  - name: service_connection
+
+stages:
+  - ${{ each state in parameters.states }}:
+      - ${{ each wkspc in state.value.workspaces }}:
+          - stage: Plan_${{ wkspc }}
+            dependsOn:
+              - Validate_and_Lint_${{ state.key }}
+              - ${{ if state.value.dependsOn }}:
+                  - Apply_${{ state.value.dependsOn }}
+            jobs:
+              - job: Plan_${{ wkspc }}
+                displayName: "Terraform Plan ${{ wkspc }}"
+                steps:
+                  - checkout: self
+                    clean: true
+                    persistCredentials: true
+                  - task: JamiePhillips.Terraform.TerraformTool.TerraformTool@0
+                    displayName: "Use Terraform $(TF_VERSION)"
+                    inputs:
+                      version: "$(TF_VERSION)"
+                  - task: AzureCLI@1
+                    displayName: "Setup Authentication"
+                    inputs:
+                      azureSubscription: "${{ parameters.service_connection }}"
+                      addSpnToEnvironment: true
+                      scriptLocation: inlineScript
+                      failOnStandardError: "true"
+                      inlineScript: |
+                        echo "##vso[task.setvariable variable=ARM_SUBSCRIPTION_ID]$(az account show --query="id" -o tsv)"
+                        echo "##vso[task.setvariable variable=ARM_CLIENT_ID]${servicePrincipalId}"
+                        echo "##vso[task.setvariable variable=ARM_CLIENT_SECRET]${servicePrincipalKey}"
+                        echo "##vso[task.setvariable variable=ARM_TENANT_ID]$(az account show --query="tenantId" -o tsv)"
+                        echo "##vso[task.setvariable variable=ARM_ACCESS_KEY]$(az storage account keys list -n ${STATE_STORAGE_ACCOUNT} --subscription "${STATE_SUBSCRIPTION}" --query="[0].value" -o tsv)"
+                  - script: |
+                      terraform init -no-color -input=false
+                      WORKSPACE=`echo ${{ wkspc }} | tr "_" -`
+                      terraform workspace select ${WORKSPACE}
+                      terraform plan -out=tfplan -no-color -input=false -detailed-exitcode
+                      PLAN_STATUS=$?
+                      echo "##vso[task.setvariable variable=PLAN_STATUS]$(echo ${PLAN_STATUS})"
+                      if [[ $PLAN_STATUS -eq 0 ]]; then
+                        echo "=========== No changes required, skipping plan file creation ==========="
+                        rm -f tfplan
+                        touch NOPLAN
+                      elif [[ $PLAN_STATUS -eq 1 ]]; then
+                        exit 1
+                      elif [[ $PLAN_STATUS -eq 2 ]]; then
+                        echo "##vso[task.logissue type=warning]Plan Created: ${{ wkspc }}"
+                        echo "##vso[build.addbuildtag]${{ wkspc }}_tfplan"
+                      fi
+                    displayName: "Terraform Plan ${{ wkspc }}"
+                    name: TerraformPlan
+                    workingDirectory: "${{ state.key }}"
+                    env:
+                      TF_IN_AUTOMATION: true
+                  - script: |
+                      WORKSPACE=`echo ${{ wkspc }} | tr "_" -`
+                      echo "Compressing ${{ state.key }} directory and environment/${WORKSPACE} vars file..."
+                      tar -czf ${{ wkspc }}.tar.gz ${{ state.key }}/ environments/
+                    displayName: "Compress ${{ wkspc }} Artifact"
+                    condition: eq(variables['PLAN_STATUS'], '2')
+                  - publish: ${{ wkspc }}.tar.gz
+                    artifact: "tfplan_${{ wkspc }}"
+                    condition: eq(variables['PLAN_STATUS'], '2')
